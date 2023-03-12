@@ -1,0 +1,32 @@
+# NPM Audit Task
+
+npm-audit:
+  stage: npm-audit
+  image: node:18.11.0-bullseye-slim
+  when: on_success
+  before_script:
+    - apt-get update -y -qq && apt-get upgrade -y -qq && apt-get install apt-transport-https -y -qq
+    - npm install -g npm-audit-plus
+  script:
+    - npm-audit-plus --xml | tee ${CI_PROJECT_NAME}_${CI_PIPELINE_ID}_npm_audit_out.xml || true
+  after_script:
+    - >
+      if grep 'Advisories: 0' ${CI_PROJECT_NAME}_${CI_PIPELINE_ID}_npm_audit_out.xml; then 
+        > ${CI_PROJECT_NAME}_${CI_PIPELINE_ID}_npm_audit_out.xml; 
+      else 
+        exit 0; 
+      fi
+  artifacts:
+    paths:
+      - ${CI_PROJECT_NAME}_${CI_PIPELINE_ID}_npm_audit_out.xml
+    reports:
+      junit: ${CI_PROJECT_NAME}_${CI_PIPELINE_ID}_npm_audit_out.xml
+    expire_in: 1 month
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+    - if: $CI_COMMIT_TAG != "null"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never

@@ -1,0 +1,63 @@
+# Deny Rules:
+.specify_rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: on_success
+    - if: $CI_COMMIT_TAG != "null"
+      when: never
+    - when: manual
+stages:
+  - terraform-scan
+
+terrascan-report:
+  stage: terraform-scan
+  image:
+    name: tenable/terrascan:latest
+    entrypoint: ["/bin/sh", "-c"]
+  script:
+    - terrascan scan -d $CI_PROJECT_DIR --log-type json --output junit-xml --log-level info > terrascan-report.xml
+  artifacts:
+    paths:
+      - terrascan-report.xml
+    reports:
+      junit: terrascan-report.xml
+    expire_in: 1 month
+  rules:
+    - !reference [.specify_rules, rules]
+  allow_failure: true
+
+tfsec-report:
+  stage: terraform-scan
+  image:
+    name: aquasec/tfsec:latest
+    entrypoint: ["/bin/sh", "-c"]
+  script:
+    - tfsec . --format junit --out tfsec-report.xml --include-passed
+  artifacts:
+    paths:
+      - tfsec-report.xml
+    reports:
+      junit: tfsec-report.xml
+    expire_in: 1 month
+  rules:
+    - !reference [.specify_rules, rules]
+  allow_failure: true
+
+checkov-report:
+  stage: terraform-scan
+  image:
+    name: bridgecrew/checkov:latest
+    entrypoint:
+      - "/usr/bin/env"
+      - "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  script:
+    - checkov -d . -o cli -o junitxml --output-file-path console,checkov-report.xml
+  artifacts:
+    paths:
+      - checkov-report.xml
+    reports:
+      junit: checkov-report.xml
+    expire_in: 1 month
+  rules:
+    - !reference [.specify_rules, rules]
+  allow_failure: true

@@ -1,0 +1,22 @@
+variables:
+  DIND_IMAGE: docker:20.10
+
+#Common configuration for use in both 'shared' and 'local' runners
+.common: &common
+  image: $DIND_IMAGE
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+.shared_runner_config: &shared_runner_config
+  <<: *common
+  services:
+    - docker:20.10-dind
+  variables:
+    # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+
+.local_runner_config: &local_runner_config
+  <<: *common
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
