@@ -1,0 +1,9 @@
+{
+  "name": "ci-cd",
+  "description": "Contains centralized pipeine definition for the group.",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "exit 0"
+  }
+}

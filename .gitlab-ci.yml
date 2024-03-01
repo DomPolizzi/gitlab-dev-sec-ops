@@ -1,0 +1,98 @@
+##########################################################################
+#        ____ ___       ____ ____
+#       / ___|_ _|     / ___|  _ \
+#      | |    | |_____| |   | | | |
+#      | |___ | |_____| |___| |_| |
+#       \____|___|     \____|____/
+#
+##########################################################################
+
+variables:
+  IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  CACHE_IMAGE: $CI_REGISTRY_IMAGE:cache
+  TARGET_PLATFORMS: linux/amd64,linux/arm64
+  NODE_IMAGE: node:14-alpine
+
+include:
+  - local: "/tasks/jira-ticket-watcher/.jira-watch.yml" # Jira Ticket Watcher
+  - local: "/tasks/npm-audit/.npm-audit.yml" # NPM Audit
+  - local: "/tasks/manual-sec-scan/.manual-sec-scan.yml" # Manual Security Scans
+  - local: "/tasks/docker-runner-config/.docker-runner-config.yml" # Local and Shared Runner Config
+
+stages:
+  - verify-jira-ticket
+  - build
+  - manual-sec-scan
+  - npm-audit
+
+Build:
+  extends:
+    - .shared_runner_config
+  stage: build
+  only:
+    - branches
+    - merge_requests
+  except:
+    - schedules
+  script:
+    # Fetches the latest built image (not failing if image is not found)
+    - docker pull $CACHE_IMAGE || true
+    # Builds the project
+    # notice the cache-from, which is going to use the image we just pulled locally
+    # the built image with  tagged with the commit SHA and 'cache'
+    # Both are then pushed to the registry
+    #- docker buildx create --driver docker-container --use
+    - >
+      DOCKER_BUILDKIT=1 docker build
+      --pull
+      --build-arg VCS_REF=$CI_COMMIT_SHA
+      --build-arg VCS_URL=$CI_PROJECT_URL
+      --cache-from $CACHE_IMAGE
+      --tag $IMAGE
+      --tag $CACHE_IMAGE
+      ./
+    - docker push $IMAGE
+    - docker push $CACHE_IMAGE
+
+Test:
+  image: $NODE_IMAGE
+  before_script:
+    - node -v
+    - npm -v
+  stage: build
+  only:
+    - branches
+    - merge_requests
+  except:
+    - schedules
+  script:
+    - npm run test
+  allow_failure: false
+
+# Jira Ticket Watcher | /tasks/jira-ticket-watcher
+check_jira_ticket:
+  stage: verify-jira-ticket
+  when: always
+  allow_failure: true
+
+# End
+
+# Manual Security Scans | /tasks/manual-sec-scan
+sec-scan:
+  stage: manual-sec-scan
+
+trivy-scan-full:
+  stage: manual-sec-scan
+
+trivy-scan-severe:
+  stage: manual-sec-scan
+
+all-scan:
+  stage: manual-sec-scan
+
+# End
+
+# NPM AUDIT | /tasks/npm-audit
+npm-audit:
+  stage: npm-audit
+#End
